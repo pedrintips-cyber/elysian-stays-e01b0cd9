@@ -17,6 +17,7 @@ type PropertyRow = {
   title: string;
   city: string;
   description: string | null;
+  amenities?: string[] | null;
   guests: number | null;
   bedrooms: number | null;
   bathrooms: number | null;
@@ -46,7 +47,17 @@ const propertySchema = z.object({
   bedrooms: z.coerce.number().int().min(0).max(20),
   bathrooms: z.coerce.number().int().min(0).max(20),
   price_per_night: z.coerce.number().min(1).max(100000),
+  amenitiesText: z.string().trim().max(500).optional().default(""),
 });
+
+function normalizeAmenities(input?: string) {
+  const raw = (input ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  // remove duplicadas mantendo ordem
+  return Array.from(new Set(raw)).slice(0, 40);
+}
 
 function extFromFile(file: File) {
   const name = file.name.toLowerCase();
@@ -74,6 +85,7 @@ export default function AdminDashboard() {
     title: "",
     city: "",
     description: "",
+    amenitiesText: "",
     guests: 2,
     bedrooms: 1,
     bathrooms: 1,
@@ -95,7 +107,9 @@ export default function AdminDashboard() {
     try {
       const { data, error } = await supabase
         .from("properties")
-        .select("id,title,city,description,guests,bedrooms,bathrooms,price_per_night,image_url,host_id,created_at")
+        .select(
+          "id,title,city,description,amenities,guests,bedrooms,bathrooms,price_per_night,image_url,host_id,created_at",
+        )
         .eq("host_id", user.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -113,6 +127,7 @@ export default function AdminDashboard() {
       title: "",
       city: "",
       description: "",
+      amenitiesText: "",
       guests: 2,
       bedrooms: 1,
       bathrooms: 1,
@@ -128,6 +143,7 @@ export default function AdminDashboard() {
       title: p.title ?? "",
       city: p.city ?? "",
       description: p.description ?? "",
+      amenitiesText: (p.amenities ?? []).join(", "),
       guests: p.guests ?? 2,
       bedrooms: p.bedrooms ?? 1,
       bathrooms: p.bathrooms ?? 1,
@@ -164,6 +180,8 @@ export default function AdminDashboard() {
 
     setBusy(true);
     try {
+      const amenities = normalizeAmenities(parsed.data.amenitiesText);
+
       if (!selectedId) {
         // Create
         const { data, error } = await supabase
@@ -173,13 +191,16 @@ export default function AdminDashboard() {
             title: parsed.data.title,
             city: parsed.data.city,
             description: parsed.data.description,
+            amenities,
             guests: parsed.data.guests,
             bedrooms: parsed.data.bedrooms,
             bathrooms: parsed.data.bathrooms,
             price_per_night: parsed.data.price_per_night,
             image_url: "/placeholder.svg",
           })
-          .select("id,title,city,description,guests,bedrooms,bathrooms,price_per_night,image_url,host_id,created_at")
+          .select(
+            "id,title,city,description,amenities,guests,bedrooms,bathrooms,price_per_night,image_url,host_id,created_at",
+          )
           .single();
         if (error) throw error;
         const created = data as PropertyRow;
@@ -222,6 +243,7 @@ export default function AdminDashboard() {
           title: parsed.data.title,
           city: parsed.data.city,
           description: parsed.data.description,
+          amenities,
           guests: parsed.data.guests,
           bedrooms: parsed.data.bedrooms,
           bathrooms: parsed.data.bathrooms,
@@ -437,6 +459,20 @@ export default function AdminDashboard() {
                     rows={6}
                     required
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="amenities">Comodidades</Label>
+                  <Input
+                    id="amenities"
+                    value={form.amenitiesText}
+                    onChange={(e) => setForm((s) => ({ ...s, amenitiesText: e.target.value }))}
+                    placeholder="Ex: Wi‑Fi, Piscina, Ar-condicionado"
+                    disabled={busy}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Separe por vírgula.
+                  </p>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-4">
