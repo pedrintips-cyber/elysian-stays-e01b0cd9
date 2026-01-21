@@ -1,18 +1,16 @@
 import * as React from "react";
-import { Heart, House, Search, User } from "lucide-react";
+import { Heart, House, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-type NavKey = "home" | "search" | "wishlists" | "profile";
+type NavKey = "home" | "search" | "wishlists";
 
 const items: Array<{ key: NavKey; label: string; Icon: React.ComponentType<{ className?: string }>; path: string }> = [
   { key: "home", label: "Início", Icon: House, path: "/" },
   { key: "search", label: "Buscar", Icon: Search, path: "/?search=true" },
   { key: "wishlists", label: "Favoritos", Icon: Heart, path: "/?favorites=true" },
-  { key: "profile", label: "Perfil", Icon: User, path: "/profile" },
 ];
 
 interface BottomNavAirProps {
@@ -22,15 +20,14 @@ interface BottomNavAirProps {
 export function BottomNavAir({ activeKey = "home" }: BottomNavAirProps) {
   const [active, setActive] = React.useState<NavKey>(activeKey);
   const navigate = useNavigate();
-  const { user } = useAuth();
+
+  React.useEffect(() => {
+    setActive(activeKey);
+  }, [activeKey]);
 
   const handleNavClick = (key: NavKey, path: string) => {
-    if (key === "profile" && !user) {
-      navigate("/auth");
-    } else {
-      setActive(key);
-      navigate(path);
-    }
+    setActive(key);
+    navigate(path);
   };
 
   return (

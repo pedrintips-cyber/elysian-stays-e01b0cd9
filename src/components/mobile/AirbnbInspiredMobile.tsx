@@ -1,11 +1,12 @@
 import * as React from "react";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { Search, SlidersHorizontal, User } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 import { AmbientGlow } from "./AmbientGlow";
 import { BottomNavAir } from "./BottomNavAir";
@@ -22,6 +23,8 @@ export default function AirbnbInspiredMobile() {
 
   const showFavorites = searchParams.get("favorites") === "true";
   const showSearch = searchParams.get("search") === "true";
+
+  const activeNavKey = showFavorites ? "wishlists" : showSearch ? "search" : "home";
 
   React.useEffect(() => {
     fetchListings();
@@ -114,6 +117,25 @@ export default function AirbnbInspiredMobile() {
                   {showFavorites ? "favoritos" : "stay"}
                 </span>
               </div>
+
+              <Button
+                type="button"
+                variant="pill"
+                size="icon"
+                aria-label={user ? "Abrir perfil" : "Entrar"}
+                className="h-11 w-11 overflow-hidden"
+                onClick={() => navigate(user ? "/profile" : "/auth")}
+              >
+                {user ? (
+                  <Avatar className="h-9 w-9">
+                    <AvatarFallback className="text-[12px]">
+                      {(user.email?.split("@")[0].slice(0, 2).toUpperCase() || "U")}
+                    </AvatarFallback>
+                  </Avatar>
+                ) : (
+                  <User className="h-5 w-5" strokeWidth={1.7} />
+                )}
+              </Button>
             </div>
 
             {!showFavorites && (
@@ -189,7 +211,7 @@ export default function AirbnbInspiredMobile() {
           )}
         </main>
 
-        <BottomNavAir />
+        <BottomNavAir activeKey={activeNavKey} />
       </div>
     </div>
   );
