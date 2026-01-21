@@ -35,16 +35,6 @@
    const [submitting, setSubmitting] = useState(false);
  
    useEffect(() => {
-     if (!user) {
-       toast({
-         variant: "destructive",
-         title: "Login necessário",
-         description: "Faça login para continuar com a reserva",
-       });
-       navigate("/auth");
-       return;
-     }
- 
      if (!propertyId) {
        toast({
          variant: "destructive",
@@ -86,7 +76,7 @@
      const totalPrice = property.price_per_night * nights;
  
      const { error } = await supabase.from("bookings").insert({
-       user_id: user.id,
+      user_id: user?.id || null,
        property_id: property.id,
        nights,
        price_per_night: property.price_per_night,
