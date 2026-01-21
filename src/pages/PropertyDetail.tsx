@@ -251,7 +251,11 @@ import { cn } from "@/lib/utils";
                 </div>
               </div>
 
-              <Button size="lg" className="h-12 rounded-2xl px-6">
+              <Button
+                size="lg"
+                className="h-12 rounded-2xl px-6"
+                onClick={() => navigate(`/checkout?property=${property.id}`)}
+              >
                 Reservar
               </Button>
             </div>
