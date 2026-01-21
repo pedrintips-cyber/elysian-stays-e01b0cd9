@@ -1,7 +1,6 @@
  import { useEffect, useState } from "react";
  import { useNavigate, useSearchParams } from "react-router-dom";
  import { supabase } from "@/lib/supabase";
- import { useAuth } from "@/hooks/useAuth";
  import { useToast } from "@/hooks/use-toast";
  import { Button } from "@/components/ui/button";
  import { Input } from "@/components/ui/input";
@@ -21,7 +20,6 @@
  export default function Checkout() {
    const [searchParams] = useSearchParams();
    const navigate = useNavigate();
-   const { user } = useAuth();
    const { toast } = useToast();
  
    const propertyId = searchParams.get("property");
@@ -29,7 +27,7 @@
    const [property, setProperty] = useState<Property | null>(null);
    const [nights, setNights] = useState(1);
    const [guestName, setGuestName] = useState("");
-   const [guestEmail, setGuestEmail] = useState(user?.email || "");
+  const [guestEmail, setGuestEmail] = useState("");
    const [guestPhone, setGuestPhone] = useState("");
    const [loading, setLoading] = useState(true);
    const [submitting, setSubmitting] = useState(false);
@@ -45,7 +43,7 @@
      }
  
      fetchProperty();
-   }, [propertyId, user]);
+  }, [propertyId]);
  
    const fetchProperty = async () => {
      const { data, error } = await supabase
@@ -69,20 +67,20 @@
    const handleSubmit = async (e: React.FormEvent) => {
      e.preventDefault();
  
-     if (!property || !user) return;
+    if (!property) return;
  
      setSubmitting(true);
  
      const totalPrice = property.price_per_night * nights;
  
      const { error } = await supabase.from("bookings").insert({
-      user_id: user?.id || null,
+      user_id: null,
        property_id: property.id,
        nights,
        price_per_night: property.price_per_night,
        total_price: totalPrice,
-       guest_name: guestName || user.email?.split("@")[0] || "Hóspede",
-       guest_email: guestEmail || user.email || "",
+      guest_name: guestName,
+      guest_email: guestEmail,
        guest_phone: guestPhone,
      });
  

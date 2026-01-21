@@ -1,12 +1,10 @@
 import * as React from "react";
-import { Search, SlidersHorizontal, User } from "lucide-react";
+import { Search, SlidersHorizontal } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/hooks/useAuth";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 import { AmbientGlow } from "./AmbientGlow";
 import { BottomNavAir } from "./BottomNavAir";
@@ -15,11 +13,9 @@ import { Listing, ListingCardAir } from "./ListingCardAir";
 export default function AirbnbInspiredMobile() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [query, setQuery] = React.useState("");
   const [listings, setListings] = React.useState<Listing[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [favorites, setFavorites] = React.useState<Set<string>>(new Set());
 
   const [geoCities, setGeoCities] = React.useState<string[] | null>(null);
   const [geoStateLabel, setGeoStateLabel] = React.useState<string | null>(null);
@@ -31,14 +27,11 @@ export default function AirbnbInspiredMobile() {
   const showFavorites = searchParams.get("favorites") === "true";
   const showSearch = searchParams.get("search") === "true";
 
-  const activeNavKey = showFavorites ? "wishlists" : showSearch ? "search" : "home";
+  const activeNavKey = showSearch ? "search" : "home";
 
   React.useEffect(() => {
     fetchListings();
-    if (user) {
-      fetchFavorites();
-    }
-  }, [showFavorites, query, user, geoCities]);
+  }, [showFavorites, query, geoCities]);
 
   React.useEffect(() => {
     // Prompt once (only on home explore view)
@@ -135,26 +128,10 @@ export default function AirbnbInspiredMobile() {
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (showFavorites && user) {
-        const { data: favData } = await supabase
-          .from("favorites")
-          .select("property_id")
-          .eq("user_id", user.id);
-
-        const favIds = favData?.map((f) => f.property_id) || [];
-        if (favIds.length > 0) {
-          queryBuilder = queryBuilder.in("id", favIds);
-        } else {
-          setListings([]);
-          setLoading(false);
-          return;
-        }
-      }
-
       // Manual search has priority
       if (query.trim()) {
         queryBuilder = queryBuilder.ilike("city", `%${query}%`);
-      } else if (!showFavorites && geoCities?.length) {
+      } else if (geoCities?.length) {
         // Geo filter (auto)
         queryBuilder = queryBuilder.in("city", geoCities);
       }
@@ -172,25 +149,12 @@ export default function AirbnbInspiredMobile() {
             rating: p.rating,
             price: `R$ ${p.price_per_night.toFixed(0)} / noite`,
             imageSrc: p.image_url,
-            isFavorite: favorites.has(p.id),
+            isFavorite: false,
           }))
         );
       }
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchFavorites = async () => {
-    if (!user) return;
-
-    const { data } = await supabase
-      .from("favorites")
-      .select("property_id")
-      .eq("user_id", user.id);
-
-    if (data) {
-      setFavorites(new Set(data.map((f) => f.property_id)));
     }
   };
 
@@ -209,31 +173,12 @@ export default function AirbnbInspiredMobile() {
             <div className="flex items-center justify-between">
               <div className="flex flex-col">
                 <span className="text-[12px] font-medium text-muted-foreground">
-                  {showFavorites ? "Meus" : "Explore"}
+                  Explore
                 </span>
                 <span className="text-[18px] font-semibold tracking-[-0.02em] text-foreground">
-                  {showFavorites ? "favoritos" : "stay"}
+                  stay
                 </span>
               </div>
-
-              <Button
-                type="button"
-                variant="pill"
-                size="icon"
-                aria-label={user ? "Abrir perfil" : "Entrar"}
-                className="h-11 w-11 overflow-hidden"
-                onClick={() => navigate(user ? "/profile" : "/auth")}
-              >
-                {user ? (
-                  <Avatar className="h-9 w-9">
-                    <AvatarFallback className="text-[12px]">
-                      {(user.email?.split("@")[0].slice(0, 2).toUpperCase() || "U")}
-                    </AvatarFallback>
-                  </Avatar>
-                ) : (
-                  <User className="h-5 w-5" strokeWidth={1.7} />
-                )}
-              </Button>
             </div>
 
             {!showFavorites && !showSearch && !geoPromptDismissed && (
@@ -339,7 +284,7 @@ export default function AirbnbInspiredMobile() {
 
         <main className="relative px-4 pb-28 pt-4">
           <h1 className="sr-only">
-            {showFavorites ? "Seus favoritos" : "Propriedades disponíveis"}
+            Propriedades disponíveis
           </h1>
 
           {loading ? (
@@ -349,9 +294,7 @@ export default function AirbnbInspiredMobile() {
           ) : listings.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-muted-foreground">
-                {showFavorites
-                  ? "Nenhum favorito ainda"
-                  : query
+                {query
                   ? "Nenhuma propriedade encontrada"
                   : "Nenhuma propriedade disponível"}
               </p>
@@ -362,10 +305,7 @@ export default function AirbnbInspiredMobile() {
               <div key={l.id} className={cn("animate-fade-up", idx === 0 && "")}
                 style={{ animationDelay: `${idx * 70}ms` }}
               >
-                <ListingCardAir 
-                  listing={{ ...l, isFavorite: favorites.has(l.id) }} 
-                  onFavoriteToggle={fetchFavorites}
-                />
+                <ListingCardAir listing={l} />
               </div>
             ))}
           </section>

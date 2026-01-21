@@ -3,9 +3,7 @@
  import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
  import { Badge } from "@/components/ui/badge";
- import { ArrowLeft, Heart, Star, Users, Bed, Bath } from "lucide-react";
- import { useAuth } from "@/hooks/useAuth";
- import { useToast } from "@/hooks/use-toast";
+import { ArrowLeft, Star, Users, Bed, Bath } from "lucide-react";
 import { cn } from "@/lib/utils";
  
  interface Property {
@@ -25,11 +23,8 @@ import { cn } from "@/lib/utils";
  export default function PropertyDetail() {
    const { id } = useParams();
    const navigate = useNavigate();
-   const { user } = useAuth();
-   const { toast } = useToast();
    const [property, setProperty] = useState<Property | null>(null);
    const [loading, setLoading] = useState(true);
-   const [isFavorite, setIsFavorite] = useState(false);
 
   const handleBack = () => {
     // If the user landed directly on this URL, there may be no SPA history to go back to.
@@ -40,11 +35,8 @@ import { cn } from "@/lib/utils";
    useEffect(() => {
      if (id) {
        fetchProperty();
-       if (user) {
-         checkFavorite();
-       }
      }
-   }, [id, user]);
+  }, [id]);
  
    const fetchProperty = async () => {
      const { data, error } = await supabase
@@ -55,63 +47,10 @@ import { cn } from "@/lib/utils";
  
      if (error) {
        console.error("Erro ao buscar propriedade:", error);
-       toast({
-         variant: "destructive",
-         title: "Erro",
-         description: "Não foi possível carregar os detalhes da propriedade",
-       });
      } else {
        setProperty(data);
      }
      setLoading(false);
-   };
- 
-   const checkFavorite = async () => {
-     if (!user) return;
- 
-     const { data } = await supabase
-       .from("favorites")
-       .select("id")
-       .eq("user_id", user.id)
-       .eq("property_id", id)
-       .maybeSingle();
- 
-     setIsFavorite(!!data);
-   };
- 
-   const toggleFavorite = async () => {
-     if (!user) {
-       toast({
-         variant: "destructive",
-         title: "Login necessário",
-         description: "Faça login para adicionar favoritos",
-       });
-       navigate("/auth");
-       return;
-     }
- 
-     if (isFavorite) {
-       await supabase
-         .from("favorites")
-         .delete()
-         .eq("user_id", user.id)
-         .eq("property_id", id);
-       setIsFavorite(false);
-       toast({
-         title: "Removido dos favoritos",
-       });
-     } else {
-       await supabase
-         .from("favorites")
-         .insert({
-           user_id: user.id,
-           property_id: id,
-         });
-       setIsFavorite(true);
-       toast({
-         title: "Adicionado aos favoritos",
-       });
-     }
    };
  
    if (loading) {
@@ -155,19 +94,6 @@ import { cn } from "@/lib/utils";
               aria-label="Voltar"
             >
               <ArrowLeft className="h-5 w-5" strokeWidth={1.7} />
-            </Button>
-
-            <Button
-              onClick={toggleFavorite}
-              variant="pill"
-              size="icon"
-              className="pointer-events-auto"
-              aria-label={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
-            >
-              <Heart
-                className={cn("h-5 w-5", isFavorite && "fill-primary text-primary")}
-                strokeWidth={1.7}
-              />
             </Button>
           </div>
         </div>
