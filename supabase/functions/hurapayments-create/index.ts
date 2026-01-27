@@ -55,6 +55,13 @@ function assertCpf(value: unknown): string | null {
   return null;
 }
 
+function toPositiveInt(value: unknown): number | null {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return null;
+  const i = Math.round(n);
+  return Number.isInteger(i) && i > 0 ? i : null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ ok: false, error: "Método não permitido" }, { status: 405 });
@@ -109,6 +116,28 @@ Deno.serve(async (req) => {
 
     const postbackUrl = `${supabaseUrl}/functions/v1/hurapayments-postback`;
 
+    // Normalize items defensively: BluPay valida `unitPrice` como inteiro > 0.
+    const normalizedItems = (body.items ?? []).map((i, idx) => {
+      const qty = toPositiveInt(i?.quantity) ?? 1;
+      const unitPrice = toPositiveInt(i?.unitPrice);
+      if (!unitPrice) {
+        console.warn("Invalid unitPrice received; will derive from amount", { idx, received: i?.unitPrice });
+      }
+      return {
+        title: String(i?.title ?? "Item"),
+        quantity: qty,
+        unitPrice: unitPrice ?? 1,
+      };
+    });
+
+    // If any unitPrice couldn't be trusted, derive a consistent integer unit price from amount.
+    const totalQty = normalizedItems.reduce((acc, it) => acc + (it.quantity || 0), 0) || 1;
+    const derivedUnitPrice = Math.max(1, Math.floor(body.amountCents / totalQty));
+    const finalItems = normalizedItems.map((it) => ({
+      ...it,
+      unitPrice: it.unitPrice > 0 ? it.unitPrice : derivedUnitPrice,
+    }));
+
     // Keep payload minimal & flexible (we'll adjust to your exact Hura response/payload when you test)
     const cpfDigits = onlyDigits(body.guest.cpf!);
     const payload = {
@@ -121,10 +150,13 @@ Deno.serve(async (req) => {
         phone: body.guest.phone,
         document: { type: "cpf", number: cpfDigits },
       },
-      items: (body.items ?? []).map((i) => ({
+      // Some gateways/APIs can be picky about casing; send canonical + snake_case aliases.
+      items: finalItems.map((i) => ({
         title: i.title,
+        name: i.title,
         quantity: i.quantity,
         unitPrice: i.unitPrice,
+        unit_price: i.unitPrice,
       })),
       metadata: {
         booking_id: body.bookingId,
@@ -138,6 +170,14 @@ Deno.serve(async (req) => {
     console.log("Creating PIX transaction", {
       bookingId: body.bookingId,
       amountCents: body.amountCents,
+    });
+
+    console.log("Hura payload preview", {
+      amount: payload.amount,
+      payment_method: payload.payment_method,
+      items: payload.items,
+      firstUnitPriceType: typeof (payload.items?.[0] as any)?.unitPrice,
+      firstUnitPriceValue: (payload.items?.[0] as any)?.unitPrice,
     });
 
     const huraRes = await fetch("https://api.hurapayments.com.br/v1/payment-transaction/create", {
@@ -184,20 +224,39 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Heuristic extraction: adapt later with real payload
+    // Extract based on observed Hura response shape:
+    // { success: true, data: { id, status, pix: { qr_code, ... } } }
     const anyJson = rawJson as Record<string, unknown> | null;
+    const dataNode = (anyJson?.["data"] as Record<string, unknown> | undefined) ?? undefined;
+
     const providerTransactionId =
+      (dataNode?.["id"] as string | undefined) ??
       (anyJson?.["id"] as string | undefined) ??
       (anyJson?.["transaction_id"] as string | undefined) ??
       (anyJson?.["transactionId"] as string | undefined) ??
       undefined;
-    const status = (anyJson?.["status"] as string | undefined) ?? "created";
-    const pix = (anyJson?.["pix"] as Record<string, unknown> | undefined) ?? undefined;
-    const pixQrCode = (pix?.["qr_code"] as string | undefined) ?? (pix?.["qrCode"] as string | undefined) ?? undefined;
+
+    const status =
+      (dataNode?.["status"] as string | undefined) ??
+      (anyJson?.["status"] as string | undefined) ??
+      "created";
+
+    const pix =
+      (dataNode?.["pix"] as Record<string, unknown> | undefined) ??
+      (anyJson?.["pix"] as Record<string, unknown> | undefined) ??
+      undefined;
+
+    const pixQrCode =
+      (pix?.["qr_code"] as string | undefined) ??
+      (pix?.["qrCode"] as string | undefined) ??
+      undefined;
+
+    // In this gateway, the copy-paste payload is the EMV string itself (often same as qr_code).
     const pixCopyPaste =
       (pix?.["copy_paste"] as string | undefined) ??
       (pix?.["copyPaste"] as string | undefined) ??
       (pix?.["emv"] as string | undefined) ??
+      pixQrCode ??
       undefined;
 
     // Persist server-side (RLS blocks public access; service role bypasses)
