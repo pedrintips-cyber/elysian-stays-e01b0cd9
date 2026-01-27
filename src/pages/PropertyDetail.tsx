@@ -3,9 +3,15 @@ import { useEffect, useMemo, useState } from "react";
  import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
  import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Star, Users, Bed, Bath } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Star, Users, Bed, Bath } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Carousel, CarouselContent, CarouselItem } from "@/components/ui/carousel";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
  
  interface Property {
    id: string;
@@ -109,24 +115,49 @@ type PropertyPhoto = {
     <div className="min-h-dvh bg-background">
       <div className="relative mx-auto min-h-dvh max-w-md overflow-hidden">
         <div className="relative">
-            <Carousel
-              className="relative"
-              opts={{ loop: true, align: "start" }}
-            >
-              <CarouselContent className="ml-0">
-                {(galleryUrls.length ? galleryUrls : [property.image_url]).map((url, idx) => (
-                  <CarouselItem key={`${url}-${idx}`} className="pl-0">
+          <Carousel
+            className="relative touch-pan-y select-none"
+            opts={{ loop: true, align: "start" }}
+          >
+            <CarouselContent className="ml-0">
+              {(galleryUrls.length ? galleryUrls : [property.image_url]).map((url, idx) => (
+                <CarouselItem key={`${url}-${idx}`} className="pl-0">
+                  <div className="h-[420px] w-full overflow-hidden bg-surface">
                     <img
                       src={url}
                       alt={`${property.title} — foto ${idx + 1}`}
                       loading={idx === 0 ? "eager" : "lazy"}
-                      className="h-[420px] w-full object-cover"
+                      decoding="async"
+                      fetchPriority={idx === 0 ? "high" : "auto"}
+                      className="h-full w-full object-contain"
                     />
-                  </CarouselItem>
-                ))}
-              </CarouselContent>
+                  </div>
+                </CarouselItem>
+              ))}
+            </CarouselContent>
 
-            </Carousel>
+            {/* Setas (visíveis no mobile) */}
+            <CarouselPrevious
+              variant="pill"
+              className={cn(
+                "left-3 top-1/2 -translate-y-1/2",
+                "h-10 w-10 shadow-soft",
+              )}
+            >
+              <ChevronLeft className="h-5 w-5" strokeWidth={1.7} />
+              <span className="sr-only">Foto anterior</span>
+            </CarouselPrevious>
+            <CarouselNext
+              variant="pill"
+              className={cn(
+                "right-3 top-1/2 -translate-y-1/2",
+                "h-10 w-10 shadow-soft",
+              )}
+            >
+              <ChevronRight className="h-5 w-5" strokeWidth={1.7} />
+              <span className="sr-only">Próxima foto</span>
+            </CarouselNext>
+          </Carousel>
 
           <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-background/60 to-transparent" />
 
