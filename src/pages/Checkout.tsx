@@ -1,4 +1,4 @@
- import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
  import { useNavigate, useSearchParams } from "react-router-dom";
  import { supabase } from "@/lib/supabase";
  import { useToast } from "@/hooks/use-toast";
@@ -34,6 +34,8 @@
    const [loading, setLoading] = useState(true);
    const [submitting, setSubmitting] = useState(false);
 
+  const [userId, setUserId] = useState<string | null>(null);
+
     const [pixOpen, setPixOpen] = useState(false);
     const [pixQrCode, setPixQrCode] = useState<string | null>(null);
     const [pixCopyPaste, setPixCopyPaste] = useState<string | null>(null);
@@ -50,6 +52,12 @@
  
      fetchProperty();
   }, [propertyId]);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setUserId(data.session?.user?.id ?? null);
+    });
+  }, []);
  
    const fetchProperty = async () => {
      const { data, error } = await supabase
@@ -94,7 +102,7 @@
       const { data: bookingRow, error: bookingErr } = await supabase
         .from("bookings")
         .insert({
-          user_id: null,
+          user_id: userId,
           property_id: property.id,
           nights,
           price_per_night: property.price_per_night,

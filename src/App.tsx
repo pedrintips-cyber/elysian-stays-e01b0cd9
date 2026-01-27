@@ -6,6 +6,8 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import PropertyDetail from "./pages/PropertyDetail";
 import Checkout from "./pages/Checkout";
+import Auth from "./pages/Auth";
+import Reservations from "./pages/Reservations";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 
@@ -18,6 +20,8 @@ const App = () => (
         <Route path="/" element={<Index />} />
         <Route path="/property/:id" element={<PropertyDetail />} />
         <Route path="/checkout" element={<Checkout />} />
+        <Route path="/auth" element={<Auth />} />
+        <Route path="/reservas" element={<Reservations />} />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin" element={<AdminDashboard />} />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
