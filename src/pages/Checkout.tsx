@@ -8,6 +8,7 @@
  import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
  import { Slider } from "@/components/ui/slider";
  import { ArrowLeft, Calendar, DollarSign, Loader2 } from "lucide-react";
+  import { PixPaymentDialog } from "@/components/payments/PixPaymentDialog";
  
  interface Property {
    id: string;
@@ -31,6 +32,10 @@
    const [guestPhone, setGuestPhone] = useState("");
    const [loading, setLoading] = useState(true);
    const [submitting, setSubmitting] = useState(false);
+
+    const [pixOpen, setPixOpen] = useState(false);
+    const [pixQrCode, setPixQrCode] = useState<string | null>(null);
+    const [pixCopyPaste, setPixCopyPaste] = useState<string | null>(null);
  
    useEffect(() => {
      if (!propertyId) {
@@ -68,38 +73,95 @@
      e.preventDefault();
  
     if (!property) return;
+
+      // basic client-side validation (server validates again)
+      if (!guestName.trim() || !guestEmail.trim() || !guestPhone.trim()) {
+        toast({
+          variant: "destructive",
+          title: "Preencha seus dados",
+          description: "Nome, e-mail e telefone são obrigatórios.",
+        });
+        return;
+      }
  
      setSubmitting(true);
  
      const totalPrice = property.price_per_night * nights;
- 
-     const { error } = await supabase.from("bookings").insert({
-      user_id: null,
-       property_id: property.id,
-       nights,
-       price_per_night: property.price_per_night,
-       total_price: totalPrice,
-      guest_name: guestName,
-      guest_email: guestEmail,
-       guest_phone: guestPhone,
-     });
- 
-     setSubmitting(false);
- 
-     if (error) {
-       console.error("Erro ao criar reserva:", error);
-       toast({
-         variant: "destructive",
-         title: "Erro ao criar reserva",
-         description: error.message,
-       });
-     } else {
-       toast({
-         title: "Reserva confirmada!",
-         description: `Você reservou ${nights} diária(s) em ${property.city}`,
-       });
-       navigate("/");
-     }
+
+      // 1) Create booking first (pending payment)
+      const { data: bookingRow, error: bookingErr } = await supabase
+        .from("bookings")
+        .insert({
+          user_id: null,
+          property_id: property.id,
+          nights,
+          price_per_night: property.price_per_night,
+          total_price: totalPrice,
+          guest_name: guestName,
+          guest_email: guestEmail,
+          guest_phone: guestPhone,
+        })
+        .select("id")
+        .single();
+
+      if (bookingErr || !bookingRow?.id) {
+        setSubmitting(false);
+        console.error("Erro ao criar reserva:", bookingErr);
+        toast({
+          variant: "destructive",
+          title: "Erro ao criar reserva",
+          description: bookingErr?.message ?? "Tente novamente.",
+        });
+        return;
+      }
+
+      // 2) Create PIX transaction via backend
+      const amountCents = Math.max(1, Math.round(Number(totalPrice) * 100));
+      const items = [{ name: `${property.title} (${nights} noite(s))`, quantity: 1 }];
+
+      setPixQrCode(null);
+      setPixCopyPaste(null);
+      setPixOpen(true);
+
+      const { data: payData, error: payErr } = await supabase.functions.invoke("hurapayments-create", {
+        body: {
+          bookingId: bookingRow.id,
+          amountCents,
+          guest: {
+            name: guestName,
+            email: guestEmail,
+            phone: guestPhone,
+          },
+          items,
+          metadata: {
+            booking_id: bookingRow.id,
+            property_id: property.id,
+          },
+        },
+      });
+
+      setSubmitting(false);
+
+      if (payErr || !payData?.ok) {
+        console.error("Erro ao criar transação PIX:", payErr, payData);
+        toast({
+          variant: "destructive",
+          title: "Erro ao gerar PIX",
+          description: "A reserva foi criada, mas não conseguimos gerar o PIX agora. Tente novamente.",
+        });
+        setPixOpen(false);
+        return;
+      }
+
+      setPixQrCode(payData?.pix?.qrCode ?? null);
+      setPixCopyPaste(payData?.pix?.copyPaste ?? null);
+
+      toast({
+        title: "PIX gerado!",
+        description: "Faça o pagamento para confirmar automaticamente sua reserva.",
+      });
+
+      return;
    };
  
    if (loading) {
@@ -135,6 +197,15 @@
          </header>
  
          <main className="px-4 pb-8 pt-6 space-y-6">
+            <PixPaymentDialog
+              open={pixOpen}
+              onOpenChange={setPixOpen}
+              title={property.title}
+              qrCode={pixQrCode}
+              copyPaste={pixCopyPaste}
+              amountLabel={`R$ ${total.toFixed(2)}`}
+            />
+
            <Card className="overflow-hidden shadow-soft">
              <div className="flex gap-4 p-4">
                <img

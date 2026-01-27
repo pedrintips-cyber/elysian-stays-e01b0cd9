@@ -1,1 +1,7 @@
 project_id = "khneqewektrwwkwrvvnp"
+
+[functions.hurapayments-create]
+verify_jwt = false
+
+[functions.hurapayments-postback]
+verify_jwt = false
