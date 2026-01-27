@@ -1,15 +1,16 @@
 import * as React from "react";
-import { House, Search } from "lucide-react";
+import { House, Search, CalendarCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-type NavKey = "home" | "search";
+type NavKey = "home" | "search" | "bookings";
 
 const items: Array<{ key: NavKey; label: string; Icon: React.ComponentType<{ className?: string }>; path: string }> = [
   { key: "home", label: "Início", Icon: House, path: "/" },
   { key: "search", label: "Buscar", Icon: Search, path: "/?search=true" },
+  { key: "bookings", label: "Reservas", Icon: CalendarCheck, path: "/reservas" },
 ];
 
 interface BottomNavAirProps {
