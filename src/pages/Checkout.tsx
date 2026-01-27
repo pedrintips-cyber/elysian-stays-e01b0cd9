@@ -30,6 +30,7 @@
    const [guestName, setGuestName] = useState("");
   const [guestEmail, setGuestEmail] = useState("");
    const [guestPhone, setGuestPhone] = useState("");
+    const [guestCpf, setGuestCpf] = useState("");
    const [loading, setLoading] = useState(true);
    const [submitting, setSubmitting] = useState(false);
 
@@ -75,11 +76,12 @@
     if (!property) return;
 
       // basic client-side validation (server validates again)
-      if (!guestName.trim() || !guestEmail.trim() || !guestPhone.trim()) {
+      const cpfDigits = guestCpf.replace(/\D+/g, "");
+      if (!guestName.trim() || !guestEmail.trim() || !guestPhone.trim() || cpfDigits.length !== 11) {
         toast({
           variant: "destructive",
           title: "Preencha seus dados",
-          description: "Nome, e-mail e telefone são obrigatórios.",
+          description: "Nome, e-mail, telefone e CPF (11 dígitos) são obrigatórios para gerar o PIX.",
         });
         return;
       }
@@ -117,7 +119,11 @@
 
       // 2) Create PIX transaction via backend
       const amountCents = Math.max(1, Math.round(Number(totalPrice) * 100));
-      const items = [{ name: `${property.title} (${nights} noite(s))`, quantity: 1 }];
+      const items = [{
+        title: `${property.title} (${nights} noite(s))`,
+        quantity: 1,
+        unitPrice: amountCents,
+      }];
 
       setPixQrCode(null);
       setPixCopyPaste(null);
@@ -131,6 +137,7 @@
             name: guestName,
             email: guestEmail,
             phone: guestPhone,
+            cpf: cpfDigits,
           },
           items,
           metadata: {
@@ -318,6 +325,20 @@
                      disabled={submitting}
                    />
                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="guestCpf">CPF</Label>
+                    <Input
+                      id="guestCpf"
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="000.000.000-00"
+                      value={guestCpf}
+                      onChange={(e) => setGuestCpf(e.target.value)}
+                      required
+                      disabled={submitting}
+                    />
+                  </div>
                </CardContent>
              </Card>
  

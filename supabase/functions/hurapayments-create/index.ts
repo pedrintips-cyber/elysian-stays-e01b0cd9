@@ -15,7 +15,7 @@ type CreatePixRequest = {
     phone: string;
     cpf?: string;
   };
-  items: Array<{ name: string; quantity: number }>;
+  items: Array<{ title: string; quantity: number; unitPrice: number }>;
   metadata?: Record<string, unknown>;
 };
 
@@ -44,6 +44,17 @@ function assertPositiveInt(value: unknown, field: string): string | null {
   return null;
 }
 
+function onlyDigits(value: string) {
+  return value.replace(/\D+/g, "");
+}
+
+function assertCpf(value: unknown): string | null {
+  if (typeof value !== "string") return "CPF é obrigatório para PIX.";
+  const digits = onlyDigits(value);
+  if (digits.length !== 11) return "CPF deve ter 11 dígitos.";
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ ok: false, error: "Método não permitido" }, { status: 405 });
@@ -64,6 +75,22 @@ Deno.serve(async (req) => {
     const errPhone = assertNonEmptyString(body?.guest?.phone, "guest.phone");
     if (errPhone) return badRequest(errPhone);
 
+    const errCpf = assertCpf(body?.guest?.cpf);
+    if (errCpf) return badRequest(errCpf);
+
+    if (!Array.isArray(body?.items) || body.items.length === 0) {
+      return badRequest("items é obrigatório.");
+    }
+    for (let i = 0; i < body.items.length; i++) {
+      const item = body.items[i];
+      const eTitle = assertNonEmptyString(item?.title, `items[${i}].title`);
+      if (eTitle) return badRequest(eTitle);
+      const eQty = assertPositiveInt(item?.quantity, `items[${i}].quantity`);
+      if (eQty) return badRequest(eQty);
+      const ePrice = assertPositiveInt(item?.unitPrice, `items[${i}].unitPrice`);
+      if (ePrice) return badRequest(ePrice);
+    }
+
     const publicKey = Deno.env.get("HURAPAYMENTS_PUBLIC_KEY") ?? "";
     const secretKey = Deno.env.get("HURAPAYMENTS_SECRET_KEY") ?? "";
     if (!publicKey || !secretKey) {
@@ -83,6 +110,7 @@ Deno.serve(async (req) => {
     const postbackUrl = `${supabaseUrl}/functions/v1/hurapayments-postback`;
 
     // Keep payload minimal & flexible (we'll adjust to your exact Hura response/payload when you test)
+    const cpfDigits = onlyDigits(body.guest.cpf!);
     const payload = {
       amount: body.amountCents,
       payment_method: "pix",
@@ -91,13 +119,12 @@ Deno.serve(async (req) => {
         name: body.guest.name,
         email: body.guest.email,
         phone: body.guest.phone,
-        document: body.guest.cpf
-          ? { type: "cpf", number: body.guest.cpf }
-          : { type: "cpf" },
+        document: { type: "cpf", number: cpfDigits },
       },
       items: (body.items ?? []).map((i) => ({
-        name: i.name,
+        title: i.title,
         quantity: i.quantity,
+        unitPrice: i.unitPrice,
       })),
       metadata: {
         booking_id: body.bookingId,
@@ -133,6 +160,24 @@ Deno.serve(async (req) => {
 
     if (!huraRes.ok) {
       console.error("Hura create transaction failed", { status: huraRes.status, rawJson });
+
+      // Persist failure for later diagnosis + mark booking as payment_failed
+      await supabase
+        .from("payment_transactions")
+        .insert({
+          booking_id: body.bookingId,
+          provider: "hurapayments",
+          provider_transaction_id: null,
+          amount_cents: body.amountCents,
+          status: "failed",
+          raw: (rawJson ?? {}) as never,
+        });
+
+      await supabase
+        .from("bookings")
+        .update({ payment_status: "payment_failed" })
+        .eq("id", body.bookingId);
+
       return json(
         { ok: false, error: "Falha ao criar transação.", details: rawJson },
         { status: 502 },
