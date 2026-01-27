@@ -22,6 +22,8 @@ export type Database = {
           guest_phone: string | null
           id: string
           nights: number
+          paid_at: string | null
+          payment_status: string
           price_per_night: number
           property_id: string
           total_price: number
@@ -35,6 +37,8 @@ export type Database = {
           guest_phone?: string | null
           id?: string
           nights?: number
+          paid_at?: string | null
+          payment_status?: string
           price_per_night: number
           property_id: string
           total_price: number
@@ -48,6 +52,8 @@ export type Database = {
           guest_phone?: string | null
           id?: string
           nights?: number
+          paid_at?: string | null
+          payment_status?: string
           price_per_night?: number
           property_id?: string
           total_price?: number
@@ -96,6 +102,56 @@ export type Database = {
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_transactions: {
+        Row: {
+          amount_cents: number
+          booking_id: string
+          created_at: string
+          id: string
+          pix_copy_paste: string | null
+          pix_qr_code: string | null
+          provider: string
+          provider_transaction_id: string | null
+          raw: Json
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount_cents: number
+          booking_id: string
+          created_at?: string
+          id?: string
+          pix_copy_paste?: string | null
+          pix_qr_code?: string | null
+          provider?: string
+          provider_transaction_id?: string | null
+          raw?: Json
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          booking_id?: string
+          created_at?: string
+          id?: string
+          pix_copy_paste?: string | null
+          pix_qr_code?: string | null
+          provider?: string
+          provider_transaction_id?: string | null
+          raw?: Json
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_transactions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
         ]
