@@ -1,10 +1,11 @@
- import { useParams, useNavigate } from "react-router-dom";
- import { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
  import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
  import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Star, Users, Bed, Bath } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Carousel, CarouselContent, CarouselItem } from "@/components/ui/carousel";
  
  interface Property {
    id: string;
@@ -19,11 +20,17 @@ import { cn } from "@/lib/utils";
    guests: number;
    amenities: string[];
  }
+
+type PropertyPhoto = {
+  url: string;
+  sort_order: number;
+};
  
  export default function PropertyDetail() {
    const { id } = useParams();
    const navigate = useNavigate();
    const [property, setProperty] = useState<Property | null>(null);
+  const [albumPhotos, setAlbumPhotos] = useState<PropertyPhoto[]>([]);
    const [loading, setLoading] = useState(true);
 
   const handleBack = () => {
@@ -32,10 +39,11 @@ import { cn } from "@/lib/utils";
     else navigate("/");
   };
  
-   useEffect(() => {
-     if (id) {
-       fetchProperty();
-     }
+  useEffect(() => {
+    if (!id) return;
+    fetchProperty();
+    fetchPhotos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
  
    const fetchProperty = async () => {
@@ -52,6 +60,31 @@ import { cn } from "@/lib/utils";
      }
      setLoading(false);
    };
+
+  const fetchPhotos = async () => {
+    const { data, error } = await supabase
+      .from("property_photos")
+      .select("url, sort_order")
+      .eq("property_id", id)
+      .order("sort_order", { ascending: true });
+
+    if (error) {
+      console.error("Erro ao buscar fotos do álbum:", error);
+      setAlbumPhotos([]);
+      return;
+    }
+
+    setAlbumPhotos((data ?? []) as PropertyPhoto[]);
+  };
+
+  const galleryUrls = useMemo(() => {
+    if (!property) return [] as string[];
+    const cover = property.image_url ? [property.image_url] : [];
+    const extras = (albumPhotos ?? []).map((p) => p.url).filter(Boolean);
+    // evita duplicar a capa caso ela também esteja no álbum
+    const uniq = Array.from(new Set([...cover, ...extras]));
+    return uniq.length ? uniq : cover;
+  }, [property, albumPhotos]);
  
    if (loading) {
      return (
@@ -76,12 +109,24 @@ import { cn } from "@/lib/utils";
     <div className="min-h-dvh bg-background">
       <div className="relative mx-auto min-h-dvh max-w-md overflow-hidden">
         <div className="relative">
-          <img
-            src={property.image_url}
-            alt={property.title}
-            loading="lazy"
-            className="h-[420px] w-full object-cover"
-          />
+            <Carousel
+              className="relative"
+              opts={{ loop: true, align: "start" }}
+            >
+              <CarouselContent className="ml-0">
+                {(galleryUrls.length ? galleryUrls : [property.image_url]).map((url, idx) => (
+                  <CarouselItem key={`${url}-${idx}`} className="pl-0">
+                    <img
+                      src={url}
+                      alt={`${property.title} — foto ${idx + 1}`}
+                      loading={idx === 0 ? "eager" : "lazy"}
+                      className="h-[420px] w-full object-cover"
+                    />
+                  </CarouselItem>
+                ))}
+              </CarouselContent>
+
+            </Carousel>
 
           <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-background/60 to-transparent" />
 
