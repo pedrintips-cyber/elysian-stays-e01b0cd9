@@ -99,22 +99,29 @@ import { useEffect, useState } from "react";
      const totalPrice = property.price_per_night * nights;
 
       // 1) Create booking first (pending payment)
-      const { data: bookingRow, error: bookingErr } = await supabase
+      // IMPORTANT: avoid `.select().single()` on insert because it requires SELECT permission under RLS.
+      // We generate the id client-side so we can proceed to payment without needing a returning row.
+      const bookingId = crypto.randomUUID();
+      const { error: bookingErr } = await supabase
         .from("bookings")
-        .insert({
-          user_id: userId,
-          property_id: property.id,
-          nights,
-          price_per_night: property.price_per_night,
-          total_price: totalPrice,
-          guest_name: guestName,
-          guest_email: guestEmail,
-          guest_phone: guestPhone,
-        })
-        .select("id")
-        .single();
+        .insert(
+          [
+            {
+              id: bookingId,
+              user_id: userId,
+              property_id: property.id,
+              nights,
+              price_per_night: property.price_per_night,
+              total_price: totalPrice,
+              guest_name: guestName.trim(),
+              guest_email: guestEmail.trim(),
+              guest_phone: guestPhone.trim(),
+            },
+          ],
+          ({ returning: "minimal" } as any),
+        );
 
-      if (bookingErr || !bookingRow?.id) {
+      if (bookingErr) {
         setSubmitting(false);
         console.error("Erro ao criar reserva:", bookingErr);
         toast({
@@ -139,7 +146,7 @@ import { useEffect, useState } from "react";
 
       const { data: payData, error: payErr } = await supabase.functions.invoke("hurapayments-create", {
         body: {
-          bookingId: bookingRow.id,
+          bookingId,
           amountCents,
           guest: {
             name: guestName,
@@ -149,7 +156,7 @@ import { useEffect, useState } from "react";
           },
           items,
           metadata: {
-            booking_id: bookingRow.id,
+            booking_id: bookingId,
             property_id: property.id,
           },
         },
